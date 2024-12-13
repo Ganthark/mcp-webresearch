@@ -253,37 +253,37 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             await page.waitForTimeout(1000);
             
             // First attempt: Try direct class selectors
-            console.log('Attempt 1: Trying direct class selectors...');
-            const directClickCount = await page.evaluate(() => {
-                let clickCount = 0;
-                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-                elements.forEach(el => {
-                    if (el.textContent?.includes('Mesurer')) {
-                        (el as HTMLElement).click();
-                        clickCount++;
-                    }
-                });
-                return clickCount;
-            });
-            console.log(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
-
-            // Second attempt: Try visible buttons
-            // console.log('Attempt 2: Trying visible buttons...');
-            // const buttonClickCount = await page.evaluate(() => {
+            // console.log('Attempt 1: Trying direct class selectors...');
+            // const directClickCount = await page.evaluate(() => {
             //     let clickCount = 0;
-            //     const buttons = Array.from(document.querySelectorAll('button'));
-            //     buttons.forEach(button => {
-            //         if (button.offsetParent !== null) {
-            //             const text = button.textContent?.toLowerCase() || '';
-            //             if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
-            //                 (button as HTMLElement).click();
-            //                 clickCount++;
-            //             }
+            //     const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+            //     elements.forEach(el => {
+            //         if (el.textContent?.includes('Mesurer')) {
+            //             (el as HTMLElement).click();
+            //             clickCount++;
             //         }
             //     });
             //     return clickCount;
             // });
-            // console.log(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
+            // console.log(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
+
+            // Second attempt: Try visible buttons
+            console.log('Attempt 2: Trying visible buttons...');
+            const buttonClickCount = await page.evaluate(() => {
+                let clickCount = 0;
+                const buttons = Array.from(document.querySelectorAll('button'));
+                buttons.forEach(button => {
+                    if (button.offsetParent !== null) {
+                        const text = button.textContent?.toLowerCase() || '';
+                        if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
+                            (button as HTMLElement).click();
+                            clickCount++;
+                        }
+                    }
+                });
+                return clickCount;
+            });
+            console.log(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
             
             // Third attempt: Remove overlays
             // console.log('Attempt 3: Trying to remove overlays...');
