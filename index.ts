@@ -252,7 +252,7 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             await page.waitForTimeout(1000);
             
             await page.evaluate(() => {
-                const consentButton = document.querySelector('.QS5gu.sy4vM');
+                const consentButton = document.querySelector('#W0wltc');
                 if (consentButton && consentButton instanceof HTMLElement) {
                     consentButton.click();
                 }
