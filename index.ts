@@ -250,23 +250,17 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
         // Handle cookie consent popups
         try {
             await page.waitForTimeout(1000);
-
+            
             await page.evaluate(() => {
-                const buttons = Array.from(document.querySelectorAll('button'));
-                buttons.forEach(button => {
-                    if (button.offsetParent !== null) {
-                        const text = button.textContent?.toLowerCase() || '';
-                        if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
-                            (button as HTMLElement).click();
-                        }
-                    }
-                });
+                const consentButton = document.querySelector('.QS5gu.sy4vM');
+                if (consentButton && consentButton instanceof HTMLElement) {
+                    consentButton.click();
+                }
             });
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
         }
-
 
         // Log warning if navigation resulted in no response
         if (!response) {
