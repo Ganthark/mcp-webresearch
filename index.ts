@@ -247,107 +247,82 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             timeout: 15000
         });
 
+        // Handle cookie consent popups
         try {
             console.log('Starting cookie consent handling...');
             await page.waitForTimeout(1000);
             
-            // First attempt: Try direct class selectors with more details
+            // First attempt: Try direct class selectors
             console.log('Attempt 1: Trying direct class selectors...');
-            type ElementDetail = {
-                text: string | null;
-                visible: boolean;
-                classes: string;
-                parent: string | undefined;
-                clickResult?: string;
-            };
-            
-            // Second attempt: Try visible buttons with more details
+            const directClickCount = await page.evaluate(() => {
+                let clickCount = 0;
+                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+                elements.forEach(el => {
+                    if (el.textContent?.includes('Mesurer')) {
+                        (el as HTMLElement).click();
+                        clickCount++;
+                    }
+                });
+                return clickCount;
+            });
+            console.log(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
+
+            // Second attempt: Try visible buttons
             console.log('Attempt 2: Trying visible buttons...');
-            const buttonDetails = await page.evaluate(() => {
-                const details: ElementDetail[] = [];
+            const buttonClickCount = await page.evaluate(() => {
+                let clickCount = 0;
                 const buttons = Array.from(document.querySelectorAll('button'));
                 buttons.forEach(button => {
                     if (button.offsetParent !== null) {
                         const text = button.textContent?.toLowerCase() || '';
                         if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
-                            try {
-                                (button as HTMLElement).click();
-                                details.push({
-                                    text: button.textContent,
-                                    visible: true,
-                                    classes: button.className,
-                                    parent: button.parentElement?.className,
-                                    clickResult: 'Click executed'
-                                });
-                            } catch (e) {
-                                details.push({
-                                    text: button.textContent,
-                                    visible: true,
-                                    classes: button.className,
-                                    parent: button.parentElement?.className,
-                                    clickResult: `Click failed: ${e}`
-                                });
-                            }
+                            (button as HTMLElement).click();
+                            clickCount++;
                         }
                     }
                 });
-                return details;
+                return clickCount;
             });
-            console.log('Attempt 2 details:', JSON.stringify(buttonDetails, null, 2));
-
-            await page.waitForTimeout(500);
+            console.log(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
             
-            // Third attempt with more details about what was found
-            console.log('Attempt 3: Analyzing overlays...');
-            type OverlayDetail = {
-                classes: string;
-                visible: boolean;
-                children: number;
-                size: {
-                    width: number;
-                    height: number;
-                };
-            };
-            
-            const overlayDetails = await page.evaluate(() => {
-                const details: OverlayDetail[] = [];
+            // Third attempt: Remove overlays
+            console.log('Attempt 3: Trying to remove overlays...');
+            const removedOverlays = await page.evaluate(() => {
+                let removeCount = 0;
                 const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
                 overlays.forEach(overlay => {
-                    details.push({
-                        classes: overlay.className,
-                        visible: overlay.offsetParent !== null,
-                        children: overlay.childNodes.length,
-                        size: {
-                            width: (overlay as HTMLElement).offsetWidth,
-                            height: (overlay as HTMLElement).offsetHeight
-                        }
-                    });
                     overlay.remove();
+                    removeCount++;
                 });
-                return details;
+                return removeCount;
             });
-            console.log('Attempt 3 details:', JSON.stringify(overlayDetails, null, 2));
+            console.log(`Attempt 3 results: Removed ${removedOverlays} overlay elements`);
 
-            await page.waitForTimeout(500);
-
-            // Final check
-            const finalState = await page.evaluate(() => {
-                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+            // Final attempt: Modify page CSS
+            console.log('Attempt 4: Modifying page CSS...');
+            await page.evaluate(() => {
+                const previousOverflow = document.body.style.overflow;
+                const previousPosition = document.body.style.position;
+                document.body.style.overflow = 'auto';
+                document.body.style.position = 'static';
                 return {
-                    popupExists: elements.length > 0,
-                    elements: Array.from(elements).map(el => ({
-                        text: el.textContent,
-                        visible: el.offsetParent !== null,
-                        classes: el.className,
-                        parent: el.parentElement?.className
-                    }))
+                    previousOverflow,
+                    previousPosition
                 };
             });
-            console.log('Final state:', JSON.stringify(finalState, null, 2));
+            console.log('Attempt 4 completed: Modified page CSS properties');
+
+            // Check if popup still exists
+            const popupStillExists = await page.evaluate(() => {
+                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+                return elements.length > 0;
+            });
+            console.log(`Final check: Popup ${popupStillExists ? 'still exists' : 'has been removed'}`);
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
         }
+
 
         // Log warning if navigation resulted in no response
         if (!response) {
