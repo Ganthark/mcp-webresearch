@@ -451,8 +451,9 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
         if (suspiciousTitles.some(title => pageContent.title.toLowerCase().includes(title))) {
             throw new Error('Suspicious page title indicates possible bot protection');
         }
-        
+
     } catch (error) {
+        // Handle navigation timeouts gracefully
         if ((error as Error).message.includes('timeout')) {
             console.warn('Navigation timeout, but continuing with available content');
             return;
