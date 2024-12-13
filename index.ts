@@ -247,6 +247,34 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             timeout: 15000
         });
 
+        // Cookie consent handler
+        try {
+            // Common cookie consent button selectors
+            const consentSelectors = [
+                'button[aria-label*="Accept"]',
+                'button[title*="Accept"]',
+                '.gowsYd.v8Bpfb',  // The specific class from the error
+                '[aria-label*="consent"]',
+                '[aria-label*="cookie"]',
+                '#accept-cookies',
+                '.accept-cookies',
+                'button:has-text("Accept")',
+                'button:has-text("Accepter")',  // French
+                'button:has-text("OK")',
+            ];
+            
+            // Try each selector
+            for (const selector of consentSelectors) {
+                const button = await page.$(selector);
+                if (button) {
+                    await button.click().catch(() => {});
+                    break;
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to handle cookie consent, continuing anyway:', error);
+        }
+
         // Log warning if navigation resulted in no response
         if (!response) {
             console.warn('Navigation resulted in no response, but continuing anyway');
