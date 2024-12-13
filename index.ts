@@ -241,7 +241,7 @@ function addResult(result: ResearchResult): void {
 // Safe page navigation with error handling and bot detection
 async function safePageNavigation(page: Page, url: string): Promise<void> {
     try {
-        console.log('Starting navigation to:', url);
+        console.warn('Starting navigation to:', url);
         const response = await page.goto(url, {
             waitUntil: 'domcontentloaded',
             timeout: 15000
@@ -249,11 +249,11 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
 
         // Handle cookie consent popups
         try {
-            console.log('Starting cookie consent handling...');
+            console.warn('Starting cookie consent handling...');
             await page.waitForTimeout(1000);
             
             // First attempt: Try direct class selectors
-            console.log('Attempt 1: Trying direct class selectors...');
+            console.warn('Attempt 1: Trying direct class selectors...');
             const directClickCount = await page.evaluate(() => {
                 let clickCount = 0;
                 const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
@@ -265,10 +265,10 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
                 });
                 return clickCount;
             });
-            console.log(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
+            console.warn(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
 
             // Second attempt: Try visible buttons
-            console.log('Attempt 2: Trying visible buttons...');
+            console.warn('Attempt 2: Trying visible buttons...');
             const buttonClickCount = await page.evaluate(() => {
                 let clickCount = 0;
                 const buttons = Array.from(document.querySelectorAll('button'));
@@ -283,10 +283,10 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
                 });
                 return clickCount;
             });
-            console.log(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
+            console.warn(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
             
             // Third attempt: Remove overlays
-            console.log('Attempt 3: Trying to remove overlays...');
+            console.warn('Attempt 3: Trying to remove overlays...');
             const removedOverlays = await page.evaluate(() => {
                 let removeCount = 0;
                 const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
@@ -296,10 +296,10 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
                 });
                 return removeCount;
             });
-            console.log(`Attempt 3 results: Removed ${removedOverlays} overlay elements`);
+            console.warn(`Attempt 3 results: Removed ${removedOverlays} overlay elements`);
 
             // Final attempt: Modify page CSS
-            console.log('Attempt 4: Modifying page CSS...');
+            console.warn('Attempt 4: Modifying page CSS...');
             await page.evaluate(() => {
                 const previousOverflow = document.body.style.overflow;
                 const previousPosition = document.body.style.position;
@@ -310,21 +310,96 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
                     previousPosition
                 };
             });
-            console.log('Attempt 4 completed: Modified page CSS properties');
+            console.warn('Attempt 4 completed: Modified page CSS properties');
 
             // Check if popup still exists
             const popupStillExists = await page.evaluate(() => {
                 const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
                 return elements.length > 0;
             });
-            console.log(`Final check: Popup ${popupStillExists ? 'still exists' : 'has been removed'}`);
+            console.warn(`Final check: Popup ${popupStillExists ? 'still exists' : 'has been removed'}`);
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
         }
 
-        // Rest of the function remains the same...
-        // [Previous validation and error handling code]
+        // Log warning if navigation resulted in no response
+        if (!response) {
+            console.warn('Navigation resulted in no response, but continuing anyway');
+        } else {
+            // Log error if HTTP status code indicates failure
+            const status = response.status();
+            if (status >= 400) {
+                throw new Error(`HTTP ${status}: ${response.statusText()}`);
+            }
+        }
+
+        // Wait for basic page structure
+        try {
+            await page.waitForSelector('body', { timeout: 3000 });
+        } catch (error) {
+            console.warn('Body selector timeout, but continuing anyway');
+        }
+
+        // Brief pause for dynamic content
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Check for bot protection and page content with timeout
+        const CONTENT_CHECK_TIMEOUT = 5000; // 5 seconds timeout
+        const pageContent = await Promise.race([
+            page.evaluate(() => {
+                // Common bot protection selectors
+                const botProtectionSelectors = [
+                    '#challenge-running',     // Cloudflare
+                    '#cf-challenge-running',  // Cloudflare
+                    '#px-captcha',            // PerimeterX
+                    '#ddos-protection',       // Various
+                    '#waf-challenge-html'     // Various WAFs
+                ];
+
+                // Check for bot protection elements
+                const hasBotProtection = botProtectionSelectors.some(selector =>
+                    document.querySelector(selector) !== null
+                );
+
+                // Extract meaningful text content
+                const meaningfulText = Array.from(document.body.getElementsByTagName('*'))
+                    .map(element => {
+                        if (element.tagName === 'SCRIPT' || element.tagName === 'STYLE' || element.tagName === 'NOSCRIPT') {
+                            return '';
+                        }
+                        return element.textContent || '';
+                    })
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                return {
+                    hasBotProtection,
+                    meaningfulText,
+                    title: document.title
+                };
+            }),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Content validation check timed out')), CONTENT_CHECK_TIMEOUT)
+            )
+        ]) as { hasBotProtection: boolean; meaningfulText: string; title: string };
+
+        // Handle bot protection detection
+        if (pageContent.hasBotProtection) {
+            throw new Error('Bot protection detected (Cloudflare or similar service)');
+        }
+
+        // Validate content quality
+        if (!pageContent.meaningfulText || pageContent.meaningfulText.length < 1000) {
+            throw new Error('Page appears to be empty or has no meaningful content');
+        }
+
+        // Check for suspicious titles indicating bot protection
+        const suspiciousTitles = ['security check', 'ddos protection', 'please wait', 'just a moment', 'attention required'];
+        if (suspiciousTitles.some(title => pageContent.title.toLowerCase().includes(title))) {
+            throw new Error('Suspicious page title indicates possible bot protection');
+        }
         
     } catch (error) {
         if ((error as Error).message.includes('timeout')) {
