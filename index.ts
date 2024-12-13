@@ -249,75 +249,19 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
 
         // Handle cookie consent popups
         try {
-            console.log('Starting cookie consent handling...');
             await page.waitForTimeout(1000);
-            
-            // First attempt: Try direct class selectors
-            // console.log('Attempt 1: Trying direct class selectors...');
-            // const directClickCount = await page.evaluate(() => {
-            //     let clickCount = 0;
-            //     const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-            //     elements.forEach(el => {
-            //         if (el.textContent?.includes('Mesurer')) {
-            //             (el as HTMLElement).click();
-            //             clickCount++;
-            //         }
-            //     });
-            //     return clickCount;
-            // });
-            // console.log(`Attempt 1 results: Found and clicked ${directClickCount} elements`);
 
-            // Second attempt: Try visible buttons
-            console.log('Attempt 2: Trying visible buttons...');
-            const buttonClickCount = await page.evaluate(() => {
-                let clickCount = 0;
+            await page.evaluate(() => {
                 const buttons = Array.from(document.querySelectorAll('button'));
                 buttons.forEach(button => {
                     if (button.offsetParent !== null) {
                         const text = button.textContent?.toLowerCase() || '';
                         if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
                             (button as HTMLElement).click();
-                            clickCount++;
                         }
                     }
                 });
-                return clickCount;
             });
-            console.log(`Attempt 2 results: Found and clicked ${buttonClickCount} buttons`);
-            
-            // Third attempt: Remove overlays
-            // console.log('Attempt 3: Trying to remove overlays...');
-            // const removedOverlays = await page.evaluate(() => {
-            //     let removeCount = 0;
-            //     const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
-            //     overlays.forEach(overlay => {
-            //         overlay.remove();
-            //         removeCount++;
-            //     });
-            //     return removeCount;
-            // });
-            // console.log(`Attempt 3 results: Removed ${removedOverlays} overlay elements`);
-
-            // Final attempt: Modify page CSS
-            // console.log('Attempt 4: Modifying page CSS...');
-            // await page.evaluate(() => {
-            //     const previousOverflow = document.body.style.overflow;
-            //     const previousPosition = document.body.style.position;
-            //     document.body.style.overflow = 'auto';
-            //     document.body.style.position = 'static';
-            //     return {
-            //         previousOverflow,
-            //         previousPosition
-            //     };
-            // });
-            // console.log('Attempt 4 completed: Modified page CSS properties');
-
-            // // Check if popup still exists
-            // const popupStillExists = await page.evaluate(() => {
-            //     const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-            //     return elements.length > 0;
-            // });
-            // console.log(`Final check: Popup ${popupStillExists ? 'still exists' : 'has been removed'}`);
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
