@@ -251,64 +251,130 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             console.log('Starting cookie consent handling...');
             await page.waitForTimeout(1000);
             
-            // Method 1: Direct selector click with navigation handling
-            console.log('Method 1: Direct selector');
-            try {
-                await Promise.all([
-                    // Wait for potential navigation
-                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
-                    // Perform the click
-                    page.evaluate(() => {
-                        const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-                        elements.forEach(el => {
-                            if (el.textContent?.includes('Mesurer')) {
-                                (el as HTMLElement).click();
+            // First attempt: Try direct class selectors with more details
+            console.log('Attempt 1: Trying direct class selectors...');
+            type ElementDetail = {
+                text: string | null;
+                visible: boolean;
+                classes: string;
+                parent: string | undefined;
+                clickResult?: string;
+            };
+            
+#            const directClickDetails = await page.evaluate(() => {
+#                const details: ElementDetail[] = [];
+#                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+#                elements.forEach(el => {
+#                    if (el.textContent?.includes('Mesurer')) {
+#                        try {
+#                            (el as HTMLElement).click();
+#                            details.push({
+#                                text: el.textContent,
+#                                visible: el.offsetParent !== null,
+#                                classes: el.className,
+#                                parent: el.parentElement?.className,
+#                                clickResult: 'Click executed'
+#                            });
+#                        } catch (e) {
+#                            details.push({
+#                                text: el.textContent,
+#                                visible: el.offsetParent !== null,
+#                                classes: el.className,
+#                                parent: el.parentElement?.className,
+#                                clickResult: `Click failed: ${e}`
+#                            });
+#                        }
+#                    }
+#                });
+#                return details;
+#            });
+#            console.log('Attempt 1 details:', JSON.stringify(directClickDetails, null, 2));
+#
+#            await page.waitForTimeout(500);
+            
+            // Second attempt: Try visible buttons with more details
+            console.log('Attempt 2: Trying visible buttons...');
+            const buttonDetails = await page.evaluate(() => {
+                const details: ElementDetail[] = [];
+                const buttons = Array.from(document.querySelectorAll('button'));
+                buttons.forEach(button => {
+                    if (button.offsetParent !== null) {
+                        const text = button.textContent?.toLowerCase() || '';
+                        if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
+                            try {
+                                (button as HTMLElement).click();
+                                details.push({
+                                    text: button.textContent,
+                                    visible: true,
+                                    classes: button.className,
+                                    parent: button.parentElement?.className,
+                                    clickResult: 'Click executed'
+                                });
+                            } catch (e) {
+                                details.push({
+                                    text: button.textContent,
+                                    visible: true,
+                                    classes: button.className,
+                                    parent: button.parentElement?.className,
+                                    clickResult: `Click failed: ${e}`
+                                });
                             }
-                        });
-                    })
-                ]);
-                console.log('Method 1: Click executed with navigation handling');
-            } catch (error) {
-                console.log('Method 1 error:', error);
-            }
+                        }
+                    }
+                });
+                return details;
+            });
+            console.log('Attempt 2 details:', JSON.stringify(buttonDetails, null, 2));
 
-            // Check if we need to continue with other methods
-            const popupExists = await page.evaluate(() => {
-                return document.querySelectorAll('.gowsYd.v8Bpfb').length > 0;
-            }).catch(() => true);  // If we can't check, assume we need to continue
+            await page.waitForTimeout(500);
+            
+            // Third attempt with more details about what was found
+            console.log('Attempt 3: Analyzing overlays...');
+            type OverlayDetail = {
+                classes: string;
+                visible: boolean;
+                children: number;
+                size: {
+                    width: number;
+                    height: number;
+                };
+            };
+            
+            const overlayDetails = await page.evaluate(() => {
+                const details: OverlayDetail[] = [];
+                const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
+                overlays.forEach(overlay => {
+                    details.push({
+                        classes: overlay.className,
+                        visible: overlay.offsetParent !== null,
+                        children: overlay.childNodes.length,
+                        size: {
+                            width: (overlay as HTMLElement).offsetWidth,
+                            height: (overlay as HTMLElement).offsetHeight
+                        }
+                    });
+                    overlay.remove();
+                });
+                return details;
+            });
+            console.log('Attempt 3 details:', JSON.stringify(overlayDetails, null, 2));
 
-            if (popupExists) {
-                console.log('Popup still exists, trying method 2');
-                // Method 2: Button click with navigation handling
-                try {
-                    await Promise.all([
-                        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
-                        page.evaluate(() => {
-                            const buttons = Array.from(document.querySelectorAll('button'));
-                            buttons.forEach(button => {
-                                if (button.offsetParent !== null) {
-                                    const text = button.textContent?.toLowerCase() || '';
-                                    if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
-                                        (button as HTMLElement).click();
-                                    }
-                                }
-                            });
-                        })
-                    ]);
-                    console.log('Method 2: Click executed with navigation handling');
-                } catch (error) {
-                    console.log('Method 2 error:', error);
-                }
-            }
+            await page.waitForTimeout(500);
 
             // Final check
-            const finalCheck = await page.evaluate(() => {
-                return document.querySelectorAll('.gowsYd.v8Bpfb').length > 0;
-            }).catch(() => null);
-            
-            console.log('Final check:', finalCheck === null ? 'unable to check' : 
-                                     finalCheck ? 'popup still exists' : 
-                                     'popup removed');
+            const finalState = await page.evaluate(() => {
+                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+                return {
+                    popupExists: elements.length > 0,
+                    elements: Array.from(elements).map(el => ({
+                        text: el.textContent,
+                        visible: el.offsetParent !== null,
+                        classes: el.className,
+                        parent: el.parentElement?.className
+                    }))
+                };
+            });
+            console.log('Final state:', JSON.stringify(finalState, null, 2));
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
