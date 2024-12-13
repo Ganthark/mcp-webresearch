@@ -247,32 +247,48 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             timeout: 15000
         });
 
-        // Cookie consent handler
+        // Handle cookie consent popups
         try {
-            // Common cookie consent button selectors
-            const consentSelectors = [
-                'button[aria-label*="Accept"]',
-                'button[title*="Accept"]',
-                '.gowsYd.v8Bpfb',  // The specific class from the error
-                '[aria-label*="consent"]',
-                '[aria-label*="cookie"]',
-                '#accept-cookies',
-                '.accept-cookies',
-                'button:has-text("Accept")',
-                'button:has-text("Accepter")',  // French
-                'button:has-text("OK")',
-            ];
+            // Wait briefly for any overlays/popups
+            await page.waitForTimeout(1000);
             
-            // Try each selector
-            for (const selector of consentSelectors) {
-                const button = await page.$(selector);
-                if (button) {
-                    await button.click().catch(() => {});
-                    break;
-                }
-            }
+            // First attempt: Try direct class selectors we see in error
+            await page.evaluate(() => {
+                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+                elements.forEach(el => {
+                    if (el.textContent?.includes('Mesurer')) {
+                        (el as HTMLElement).click();
+                    }
+                });
+            });
+
+            // Second attempt: Try to find and click any visible buttons
+            await page.evaluate(() => {
+                const buttons = Array.from(document.querySelectorAll('button'));
+                buttons.forEach(button => {
+                    if (button.offsetParent !== null) { // Check if button is visible
+                        const text = button.textContent?.toLowerCase() || '';
+                        if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
+                            (button as HTMLElement).click();
+                        }
+                    }
+                });
+            });
+            
+            // Third attempt: Try to remove the overlay directly
+            await page.evaluate(() => {
+                const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
+                overlays.forEach(overlay => overlay.remove());
+            });
+
+            // Final attempt: Try to modify page to bypass overlay
+            await page.evaluate(() => {
+                document.body.style.overflow = 'auto';
+                document.body.style.position = 'static';
+            });
+
         } catch (error) {
-            console.warn('Failed to handle cookie consent, continuing anyway:', error);
+            console.warn('Failed to handle cookie consent:', error);
         }
 
         // Log warning if navigation resulted in no response
