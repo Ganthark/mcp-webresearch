@@ -261,37 +261,6 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
                 clickResult?: string;
             };
             
-#            const directClickDetails = await page.evaluate(() => {
-#                const details: ElementDetail[] = [];
-#                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-#                elements.forEach(el => {
-#                    if (el.textContent?.includes('Mesurer')) {
-#                        try {
-#                            (el as HTMLElement).click();
-#                            details.push({
-#                                text: el.textContent,
-#                                visible: el.offsetParent !== null,
-#                                classes: el.className,
-#                                parent: el.parentElement?.className,
-#                                clickResult: 'Click executed'
-#                            });
-#                        } catch (e) {
-#                            details.push({
-#                                text: el.textContent,
-#                                visible: el.offsetParent !== null,
-#                                classes: el.className,
-#                                parent: el.parentElement?.className,
-#                                clickResult: `Click failed: ${e}`
-#                            });
-#                        }
-#                    }
-#                });
-#                return details;
-#            });
-#            console.log('Attempt 1 details:', JSON.stringify(directClickDetails, null, 2));
-#
-#            await page.waitForTimeout(500);
-            
             // Second attempt: Try visible buttons with more details
             console.log('Attempt 2: Trying visible buttons...');
             const buttonDetails = await page.evaluate(() => {
