@@ -251,63 +251,69 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             console.log('Starting cookie consent handling...');
             await page.waitForTimeout(1000);
             
-            // Method 1: Direct selector click
+            // Method 1: Direct selector click with navigation handling
             console.log('Method 1: Direct selector');
-            const clickResult1 = await page.evaluate(() => {
-                const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-                let clicked = false;
-                elements.forEach(el => {
-                    if (el.textContent?.includes('Mesurer')) {
-                        (el as HTMLElement).click();
-                        clicked = true;
-                    }
-                });
-                return clicked;
-            });
-            console.log('Method 1 result:', clickResult1 ? 'element clicked' : 'no element clicked');
-            await page.waitForTimeout(500);
+            try {
+                await Promise.all([
+                    // Wait for potential navigation
+                    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
+                    // Perform the click
+                    page.evaluate(() => {
+                        const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
+                        elements.forEach(el => {
+                            if (el.textContent?.includes('Mesurer')) {
+                                (el as HTMLElement).click();
+                            }
+                        });
+                    })
+                ]);
+                console.log('Method 1: Click executed with navigation handling');
+            } catch (error) {
+                console.log('Method 1 error:', error);
+            }
 
-            // Method 2: Button click
-            console.log('Method 2: Button click');
-            const clickResult2 = await page.evaluate(() => {
-                const buttons = Array.from(document.querySelectorAll('button'));
-                let clicked = false;
-                buttons.forEach(button => {
-                    if (button.offsetParent !== null) {
-                        const text = button.textContent?.toLowerCase() || '';
-                        if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
-                            (button as HTMLElement).click();
-                            clicked = true;
-                        }
-                    }
-                });
-                return clicked;
-            });
-            console.log('Method 2 result:', clickResult2 ? 'button clicked' : 'no button clicked');
-            await page.waitForTimeout(500);
+            // Check if we need to continue with other methods
+            const popupExists = await page.evaluate(() => {
+                return document.querySelectorAll('.gowsYd.v8Bpfb').length > 0;
+            }).catch(() => true);  // If we can't check, assume we need to continue
 
-            // Method 3: Remove overlays
-            console.log('Method 3: Remove overlays');
-            const removeResult = await page.evaluate(() => {
-                const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
-                let removed = false;
-                overlays.forEach(overlay => {
-                    overlay.remove();
-                    removed = true;
-                });
-                return removed;
-            });
-            console.log('Method 3 result:', removeResult ? 'overlays removed' : 'no overlays found');
+            if (popupExists) {
+                console.log('Popup still exists, trying method 2');
+                // Method 2: Button click with navigation handling
+                try {
+                    await Promise.all([
+                        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {}),
+                        page.evaluate(() => {
+                            const buttons = Array.from(document.querySelectorAll('button'));
+                            buttons.forEach(button => {
+                                if (button.offsetParent !== null) {
+                                    const text = button.textContent?.toLowerCase() || '';
+                                    if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
+                                        (button as HTMLElement).click();
+                                    }
+                                }
+                            });
+                        })
+                    ]);
+                    console.log('Method 2: Click executed with navigation handling');
+                } catch (error) {
+                    console.log('Method 2 error:', error);
+                }
+            }
 
-            // Check final state
+            // Final check
             const finalCheck = await page.evaluate(() => {
                 return document.querySelectorAll('.gowsYd.v8Bpfb').length > 0;
-            });
-            console.log('Final check:', finalCheck ? 'popup still exists' : 'popup removed');
+            }).catch(() => null);
+            
+            console.log('Final check:', finalCheck === null ? 'unable to check' : 
+                                     finalCheck ? 'popup still exists' : 
+                                     'popup removed');
 
         } catch (error) {
             console.warn('Failed to handle cookie consent:', error);
         }
+
         // Log warning if navigation resulted in no response
         if (!response) {
             console.warn('Navigation resulted in no response, but continuing anyway');
