@@ -253,22 +253,36 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             
             // First attempt: Try direct class selectors with more details
             console.log('Attempt 1: Trying direct class selectors...');
+            type ElementDetail = {
+                text: string | null;
+                visible: boolean;
+                classes: string;
+                parent: string | undefined;
+                clickResult?: string;
+            };
+            
             const directClickDetails = await page.evaluate(() => {
-                const details = [];
+                const details: ElementDetail[] = [];
                 const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
                 elements.forEach(el => {
-                    details.push({
-                        text: el.textContent,
-                        visible: el.offsetParent !== null,
-                        classes: el.className,
-                        parent: el.parentElement?.className
-                    });
                     if (el.textContent?.includes('Mesurer')) {
                         try {
                             (el as HTMLElement).click();
-                            details.push('Click executed');
+                            details.push({
+                                text: el.textContent,
+                                visible: el.offsetParent !== null,
+                                classes: el.className,
+                                parent: el.parentElement?.className,
+                                clickResult: 'Click executed'
+                            });
                         } catch (e) {
-                            details.push(`Click failed: ${e.message}`);
+                            details.push({
+                                text: el.textContent,
+                                visible: el.offsetParent !== null,
+                                classes: el.className,
+                                parent: el.parentElement?.className,
+                                clickResult: `Click failed: ${e}`
+                            });
                         }
                     }
                 });
@@ -276,30 +290,34 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             });
             console.log('Attempt 1 details:', JSON.stringify(directClickDetails, null, 2));
 
-            // Wait briefly to see if first attempt had effect
             await page.waitForTimeout(500);
             
             // Second attempt: Try visible buttons with more details
             console.log('Attempt 2: Trying visible buttons...');
             const buttonDetails = await page.evaluate(() => {
-                const details = [];
+                const details: ElementDetail[] = [];
                 const buttons = Array.from(document.querySelectorAll('button'));
                 buttons.forEach(button => {
                     if (button.offsetParent !== null) {
                         const text = button.textContent?.toLowerCase() || '';
-                        details.push({
-                            text: button.textContent,
-                            visible: true,
-                            hasAcceptText: text.includes('accept') || text.includes('accepter') || text.includes('ok'),
-                            classes: button.className,
-                            parent: button.parentElement?.className
-                        });
                         if (text.includes('accept') || text.includes('accepter') || text.includes('ok')) {
                             try {
                                 (button as HTMLElement).click();
-                                details.push('Click executed');
+                                details.push({
+                                    text: button.textContent,
+                                    visible: true,
+                                    classes: button.className,
+                                    parent: button.parentElement?.className,
+                                    clickResult: 'Click executed'
+                                });
                             } catch (e) {
-                                details.push(`Click failed: ${e.message}`);
+                                details.push({
+                                    text: button.textContent,
+                                    visible: true,
+                                    classes: button.className,
+                                    parent: button.parentElement?.className,
+                                    clickResult: `Click failed: ${e}`
+                                });
                             }
                         }
                     }
@@ -308,13 +326,22 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             });
             console.log('Attempt 2 details:', JSON.stringify(buttonDetails, null, 2));
 
-            // Wait briefly to see if second attempt had effect
             await page.waitForTimeout(500);
             
             // Third attempt with more details about what was found
             console.log('Attempt 3: Analyzing overlays...');
+            type OverlayDetail = {
+                classes: string;
+                visible: boolean;
+                children: number;
+                size: {
+                    width: number;
+                    height: number;
+                };
+            };
+            
             const overlayDetails = await page.evaluate(() => {
-                const details = [];
+                const details: OverlayDetail[] = [];
                 const overlays = document.querySelectorAll('div[class*="overlay"], div[class*="modal"], div[class*="popup"]');
                 overlays.forEach(overlay => {
                     details.push({
@@ -332,40 +359,19 @@ async function safePageNavigation(page: Page, url: string): Promise<void> {
             });
             console.log('Attempt 3 details:', JSON.stringify(overlayDetails, null, 2));
 
-            // Wait briefly to see if third attempt had effect
             await page.waitForTimeout(500);
 
-            // Final attempt with style details
-            console.log('Attempt 4: Analyzing and modifying page CSS...');
-            const cssDetails = await page.evaluate(() => {
-                const before = {
-                    overflow: document.body.style.overflow,
-                    position: document.body.style.position
-                };
-                document.body.style.overflow = 'auto';
-                document.body.style.position = 'static';
-                const after = {
-                    overflow: document.body.style.overflow,
-                    position: document.body.style.position
-                };
-                return { before, after };
-            });
-            console.log('CSS modification details:', JSON.stringify(cssDetails, null, 2));
-
-            // Detailed final check
+            // Final check
             const finalState = await page.evaluate(() => {
                 const elements = document.querySelectorAll('.gowsYd.v8Bpfb');
-                return elements.length > 0 ? {
-                    popupExists: true,
-                    details: Array.from(elements).map(el => ({
+                return {
+                    popupExists: elements.length > 0,
+                    elements: Array.from(elements).map(el => ({
                         text: el.textContent,
                         visible: el.offsetParent !== null,
                         classes: el.className,
-                        style: (el as HTMLElement).style.cssText,
                         parent: el.parentElement?.className
                     }))
-                } : {
-                    popupExists: false
                 };
             });
             console.log('Final state:', JSON.stringify(finalState, null, 2));
